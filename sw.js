@@ -1,6 +1,6 @@
 // 画面ファイルをキャッシュして、電波が弱いときもアプリを開けるようにする。
 // ネットワーク優先なので、更新はすぐ反映される。
-const CACHE = 'family-recipe-v1';
+const CACHE = 'family-recipe-v3';
 const SHELL = [
   './',
   'index.html',
@@ -30,13 +30,16 @@ self.addEventListener('fetch', (event) => {
   // GAS への通信など、別ドメインや GET 以外は触らない
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
 
+  // cache: 'no-cache' で毎回サーバーに更新を確認する（ブラウザに古いファイルが残っていても使わない）
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((cache) => cache.put(req, copy));
         return res;
       })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('index.html')))
+      .catch(() =>
+        caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('index.html'))
+      )
   );
 });

@@ -48,12 +48,20 @@ const state = {
   search: '',
   editingId: null,
   chatBusy: false,
+  chatAbort: null, // 返答待ちを取り消すための AbortController
 };
 const pendingDeltas = new Map(); // id -> { delta, timer }
 
 // ---------- ユーティリティ ----------
 
 const $ = (sel) => document.querySelector(sel);
+
+/** イベント登録。要素が見つからなくても（古い HTML が残っていても）他の機能は止めない */
+function on(sel, event, fn) {
+  const node = $(sel);
+  if (node) node.addEventListener(event, fn);
+  else console.warn('要素が見つかりません:', sel);
+}
 
 function el(tag, attrs, ...children) {
   const node = document.createElement(tag);
@@ -121,7 +129,7 @@ function apiUrl() {
   return getSettings().apiUrl || (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
 }
 
-async function api(action, payload) {
+async function api(action, payload, signal) {
   const url = apiUrl();
   if (!url) throw new Error('サーバーURLが未設定です（config.js を確認してください）');
   const { passcode } = getSettings();
@@ -132,6 +140,7 @@ async function api(action, payload) {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action, passcode }, payload)),
+    signal,
   });
   if (!res.ok) throw new Error('通信エラー (' + res.status + ')');
   const data = await res.json();
@@ -351,19 +360,37 @@ async function sendChat(text) {
   autoResize();
   renderChat(true);
 
+  const controller = new AbortController();
+  state.chatAbort = controller;
+  let canceled = false;
   try {
-    const data = await api('chat', { messages: chatForApi(), servings: getSettings().servings });
+    const data = await api('chat', { messages: chatForApi(), servings: getSettings().servings }, controller.signal);
     state.chat.push({ role: 'model', text: data.reply || '', recipes: data.recipes || [] });
   } catch (err) {
-    state.chat.push({ role: 'error', text: err.message || String(err) });
-    if (err.code === 'AUTH') handleError(err);
+    if (err.name === 'AbortError') {
+      // 誤送信の取り消し: 送ったメッセージを消して入力欄に戻す
+      canceled = true;
+      const last = state.chat[state.chat.length - 1];
+      if (last && last.role === 'user' && last.text === text) state.chat.pop();
+      $('#chat-input').value = text;
+      autoResize();
+      toast('送信を取り消しました');
+    } else {
+      state.chat.push({ role: 'error', text: err.message || String(err) });
+      if (err.code === 'AUTH') handleError(err);
+    }
   } finally {
     state.chatBusy = false;
+    state.chatAbort = null;
     saveChat();
     renderChat(false);
     // AI が使う在庫を最新にしておく（他の家族の変更を反映）
-    refreshStock(true);
+    if (!canceled) refreshStock(true);
   }
+}
+
+function cancelChat() {
+  if (state.chatAbort) state.chatAbort.abort();
 }
 
 function findStockFor(ing) {
@@ -438,7 +465,10 @@ function renderChat(thinking) {
     nodes.push(el('div', { class: 'msg model' }, el('div', { class: 'bubble' }, el('span', { class: 'typing' }, el('i'), el('i'), el('i')))));
   }
   log.replaceChildren(...nodes);
-  $('#chat-send').disabled = state.chatBusy;
+  const sendBtn = $('#chat-send');
+  sendBtn.textContent = state.chatBusy ? 'キャンセル' : '送信';
+  sendBtn.classList.toggle('primary', !state.chatBusy);
+  sendBtn.classList.toggle('danger', state.chatBusy);
   requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
 }
 
@@ -452,7 +482,7 @@ function renderQuickPrompts() {
 // ---------- 条件を選んで頼む（テンプレート） ----------
 
 function defaultTemplate() {
-  const t = {};
+  const t = { servings: getSettings().servings };
   for (const g of TEMPLATE_GROUPS) t[g.key] = [...g.default];
   return t;
 }
@@ -467,6 +497,7 @@ function loadTemplate() {
     const valid = (saved[g.key] || []).filter((v) => g.options.includes(v));
     if (valid.length) template[g.key] = valid;
   }
+  if (Number(saved.servings) >= 1) template.servings = Number(saved.servings);
 }
 
 function toggleTemplateOption(group, option) {
@@ -509,7 +540,8 @@ function openTemplateDialog() {
   if (state.chatBusy) return;
   loadTemplate();
   renderTemplate();
-  $('#tpl-servings').value = getSettings().servings;
+  // 前回の条件（人数も含む）を引き継ぐ。「その他の希望」は毎回空にする
+  $('#tpl-servings').value = template.servings;
   $('#tpl-note').value = '';
   $('#tpl-dialog').showModal();
 }
@@ -522,7 +554,7 @@ function buildTemplatePrompt() {
     const label = g.label.replace('（複数可）', '');
     lines.push('・' + label + ': ' + values.join('、'));
   }
-  lines.push('・人数: ' + (Math.max(1, Number($('#tpl-servings').value) || getSettings().servings)) + '人分');
+  lines.push('・人数: ' + template.servings + '人分');
   const note = $('#tpl-note').value.trim();
   if (note) lines.push('・その他: ' + note);
   return lines.join('\n');
@@ -530,6 +562,7 @@ function buildTemplatePrompt() {
 
 function submitTemplate(e) {
   e.preventDefault();
+  template.servings = Math.max(1, Number($('#tpl-servings').value) || getSettings().servings);
   save(KEY_TEMPLATE, template);
   const prompt = buildTemplatePrompt();
   $('#tpl-dialog').close();
@@ -719,45 +752,47 @@ function init() {
   // イベント
   document.querySelectorAll('.tabbar button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
-  $('#btn-add').addEventListener('click', () => openItemDialog(null));
-  $('#item-form').addEventListener('submit', submitItem);
-  $('#item-delete').addEventListener('click', deleteItem);
-  $('#cook-form').addEventListener('submit', submitCook);
-  $('#tpl-form').addEventListener('submit', submitTemplate);
-  $('#tpl-reset').addEventListener('click', () => {
+  on('#btn-add', 'click', () => openItemDialog(null));
+  on('#item-form', 'submit', submitItem);
+  on('#item-delete', 'click', deleteItem);
+  on('#cook-form', 'submit', submitCook);
+  on('#tpl-form', 'submit', submitTemplate);
+  on('#tpl-reset', 'click', () => {
     template = defaultTemplate();
     renderTemplate();
+    $('#tpl-servings').value = template.servings;
     $('#tpl-note').value = '';
   });
-  $('#cook-add-row').addEventListener('click', () => $('#cook-rows').append(makeCookRow('追加の食材', '', null, 0)));
-  $('#stock-search').addEventListener('input', (e) => {
+  on('#cook-add-row', 'click', () => $('#cook-rows').append(makeCookRow('追加の食材', '', null, 0)));
+  on('#stock-search', 'input', (e) => {
     state.search = e.target.value;
     renderStock();
   });
-  $('#btn-refresh').addEventListener('click', () => {
+  on('#btn-refresh', 'click', () => {
     refreshStock(false);
     if (!$('#view-history').hidden) loadHistory(true);
   });
-  $('#btn-save-settings').addEventListener('click', saveSettings);
-  $('#btn-clear-chat').addEventListener('click', () => {
+  on('#btn-save-settings', 'click', saveSettings);
+  on('#btn-clear-chat', 'click', () => {
     if (!confirm('この端末の会話をすべて消しますか？')) return;
     state.chat = [];
     saveChat();
     toast('会話を消しました');
   });
 
-  const chatInput = $('#chat-input');
-  chatInput.addEventListener('input', autoResize);
-  chatInput.addEventListener('keydown', (e) => {
+  on('#chat-input', 'input', autoResize);
+  on('#chat-input', 'keydown', (e) => {
     // PC では Enter で送信（Shift+Enter で改行）。スマホは送信ボタンで送る
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) {
       e.preventDefault();
-      sendChat(chatInput.value);
+      sendChat(e.target.value);
     }
   });
-  $('#chat-form').addEventListener('submit', (e) => {
+  on('#chat-form', 'submit', (e) => {
     e.preventDefault();
-    sendChat(chatInput.value);
+    // 返答待ちの間は送信ボタンがキャンセルボタンになる
+    if (state.chatBusy) cancelChat();
+    else sendChat($('#chat-input').value);
   });
 
   // 前回のデータを先に表示してから最新を取りに行く

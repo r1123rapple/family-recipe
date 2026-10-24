@@ -12,7 +12,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css">
+  <!-- ファイルを更新したら ?v= の数字を上げる（スマホに古いファイルが残るのを防ぐ） -->
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <header class="app-header">
@@ -159,7 +160,7 @@
   <div id="toast" class="toast" hidden></div>
   <div id="loading" class="loading" hidden><div class="spinner"></div></div>
 
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
