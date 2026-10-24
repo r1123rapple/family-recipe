@@ -121,6 +121,26 @@
     </form>
   </dialog>
 
+  <!-- 条件を選んで頼む（テンプレート） -->
+  <dialog id="tpl-dialog">
+    <form id="tpl-form" method="dialog">
+      <h2>条件を選んで頼む</h2>
+      <div id="tpl-groups"></div>
+      <label class="field">人数
+        <input id="tpl-servings" type="number" min="1" max="12" step="1">
+      </label>
+      <label class="field">その他の希望（任意）
+        <input id="tpl-note" placeholder="例: 鶏むね肉を使いたい、辛さ控えめ" autocomplete="off">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" id="tpl-reset" class="btn">リセット</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" data-close>キャンセル</button>
+        <button type="submit" class="btn primary">この条件で頼む</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- 作る（消費量の確認） -->
   <dialog id="cook-dialog">
     <form id="cook-form" method="dialog">

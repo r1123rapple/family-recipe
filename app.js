@@ -13,12 +13,30 @@ const QUICK_PROMPTS = [
   '子どもが喜ぶメニュー',
   '何を買い足すと作れる幅が広がる？',
 ];
-const VIEW_TITLES = { stock: '在庫', chef: 'AIシェフ', history: '作った履歴', settings: '設定' };
+// 「条件を選んで頼む」の選択肢。multi: 複数選択可、default: 初期選択
+const TEMPLATE_GROUPS = [
+  { key: 'count', label: '品数', multi: false, default: ['3品'],
+    options: ['1品', '2品', '3品', '4品', '5品'] },
+  { key: 'type', label: '料理の種類', multi: false, default: ['おまかせ'],
+    options: ['おまかせ', '主菜', '副菜', '汁物・スープ', '主菜＋副菜＋汁物の献立', '丼・麺・ご飯もの', 'お弁当のおかず', 'おつまみ'] },
+  { key: 'flavor', label: '味付け（複数可）', multi: true, default: ['おまかせ'],
+    options: ['おまかせ', '醤油', '味噌', '塩', '甘辛', '照り焼き', 'ポン酢・さっぱり', '和風だし', 'コンソメ・洋風', 'トマト', 'クリーム・チーズ', '中華', 'カレー・スパイス', 'ピリ辛', 'ごま'] },
+  { key: 'time', label: '調理時間', multi: false, default: ['指定なし'],
+    options: ['指定なし', '10分以内', '20分以内', '30分以内', '時間をかけてOK'] },
+  { key: 'method', label: '調理法（複数可）', multi: true, default: ['おまかせ'],
+    options: ['おまかせ', '炒める', '煮る', '焼く', '揚げる', '蒸す', 'レンジだけ', '火を使わない'] },
+  { key: 'wish', label: 'こだわり（複数可）', multi: true, default: [],
+    options: ['使い切りたい食材を優先', '在庫だけで作る', '子ども向け', 'ヘルシー', 'ボリューム重視', '作り置きできる', '洗い物を少なく'] },
+];
+const ANY_OPTIONS = ['おまかせ', '指定なし'];
+
+const VIEW_TITLES ={ stock: '在庫', chef: 'AIシェフ', history: '作った履歴', settings: '設定' };
 const ADJUST_DELAY_MS = 700;
 
 const KEY_SETTINGS = 'fr.settings';
 const KEY_CHAT = 'fr.chat';
 const KEY_STOCK = 'fr.stock';
+const KEY_TEMPLATE = 'fr.template';
 
 // ---------- 状態 ----------
 
@@ -359,10 +377,14 @@ function findStockFor(ing) {
     state.items.find((x) => x.name.includes(name) || name.includes(x.name)) || null;
 }
 
-function renderRecipe(recipe) {
-  const card = el('div', { class: 'recipe' });
-  const meta = [recipe.minutes ? '⏱ 約' + recipe.minutes + '分' : null, recipe.servings ? '🍽 ' + recipe.servings + '人分' : null]
-    .filter(Boolean).join('　');
+function renderRecipe(recipe, collapsed) {
+  const card = el('div', { class: 'recipe' + (collapsed ? ' collapsed' : '') });
+  const meta = [
+    recipe.flavor ? '🧂 ' + recipe.flavor : null,
+    recipe.minutes ? '⏱ 約' + recipe.minutes + '分' : null,
+    recipe.servings ? '🍽 ' + recipe.servings + '人分' : null,
+  ].filter(Boolean).join('　');
+  const tips = recipe.tips || [];
 
   card.append(
     el('div', { class: 'recipe-head', onclick: () => card.classList.toggle('collapsed') },
@@ -385,7 +407,9 @@ function renderRecipe(recipe) {
         })
       ),
       el('h4', {}, '作り方'),
-      el('ol', { class: 'steps' }, (recipe.steps || []).map((s) => el('li', {}, s)))
+      el('ol', { class: 'steps' }, (recipe.steps || []).map((s) => el('li', {}, s))),
+      tips.length ? el('h4', {}, 'コツ・ポイント') : null,
+      tips.length ? el('ul', { class: 'tips' }, tips.map((t) => el('li', {}, t))) : null
     ),
     el('div', { class: 'recipe-foot' },
       el('button', { class: 'btn primary', onclick: () => openCookDialog(recipe) }, 'これを作る')
@@ -406,7 +430,9 @@ function renderChat(thinking) {
   }
   for (const m of state.chat) {
     if (m.text) nodes.push(el('div', { class: 'msg ' + m.role }, el('div', { class: 'bubble' }, m.text)));
-    for (const r of m.recipes || []) nodes.push(renderRecipe(r));
+    // 複数品のときは折りたたんで、タップで詳細を開く
+    const recipes = m.recipes || [];
+    for (const r of recipes) nodes.push(renderRecipe(r, recipes.length > 1));
   }
   if (thinking) {
     nodes.push(el('div', { class: 'msg model' }, el('div', { class: 'bubble' }, el('span', { class: 'typing' }, el('i'), el('i'), el('i')))));
@@ -418,8 +444,96 @@ function renderChat(thinking) {
 
 function renderQuickPrompts() {
   $('#quick-prompts').replaceChildren(
+    el('button', { class: 'chip tpl', type: 'button', onclick: openTemplateDialog }, '📝 条件を選んで頼む'),
     ...QUICK_PROMPTS.map((p) => el('button', { class: 'chip', type: 'button', onclick: () => sendChat(p) }, p))
   );
+}
+
+// ---------- 条件を選んで頼む（テンプレート） ----------
+
+function defaultTemplate() {
+  const t = {};
+  for (const g of TEMPLATE_GROUPS) t[g.key] = [...g.default];
+  return t;
+}
+
+let template = null;
+
+function loadTemplate() {
+  const saved = load(KEY_TEMPLATE, {});
+  template = defaultTemplate();
+  for (const g of TEMPLATE_GROUPS) {
+    // 選択肢を後から変えても壊れないよう、存在する値だけ復元する
+    const valid = (saved[g.key] || []).filter((v) => g.options.includes(v));
+    if (valid.length) template[g.key] = valid;
+  }
+}
+
+function toggleTemplateOption(group, option) {
+  let selected = template[group.key];
+  if (!group.multi) {
+    selected = [option];
+  } else if (selected.includes(option)) {
+    selected = selected.filter((v) => v !== option);
+  } else if (ANY_OPTIONS.includes(option)) {
+    selected = [option];
+  } else {
+    selected = [...selected.filter((v) => !ANY_OPTIONS.includes(v)), option];
+  }
+  // 「おまかせ」がある項目で全部外したら「おまかせ」に戻す
+  if (!selected.length) selected = group.options.filter((v) => ANY_OPTIONS.includes(v)).slice(0, 1);
+  template[group.key] = selected;
+  renderTemplate();
+}
+
+function renderTemplate() {
+  $('#tpl-groups').replaceChildren(
+    ...TEMPLATE_GROUPS.map((g) =>
+      el('div', { class: 'tpl-group' },
+        el('div', { class: 'tpl-label' }, g.label),
+        el('div', { class: 'chips wrap' },
+          g.options.map((o) =>
+            el('button', {
+              type: 'button',
+              class: 'chip' + (template[g.key].includes(o) ? ' active' : ''),
+              onclick: () => toggleTemplateOption(g, o),
+            }, o)
+          )
+        )
+      )
+    )
+  );
+}
+
+function openTemplateDialog() {
+  if (state.chatBusy) return;
+  loadTemplate();
+  renderTemplate();
+  $('#tpl-servings').value = getSettings().servings;
+  $('#tpl-note').value = '';
+  $('#tpl-dialog').showModal();
+}
+
+function buildTemplatePrompt() {
+  const lines = ['次の条件でメニューを提案してください。'];
+  for (const g of TEMPLATE_GROUPS) {
+    const values = template[g.key].filter((v) => !ANY_OPTIONS.includes(v));
+    if (!values.length) continue;
+    const label = g.label.replace('（複数可）', '');
+    lines.push('・' + label + ': ' + values.join('、'));
+  }
+  lines.push('・人数: ' + (Math.max(1, Number($('#tpl-servings').value) || getSettings().servings)) + '人分');
+  const note = $('#tpl-note').value.trim();
+  if (note) lines.push('・その他: ' + note);
+  return lines.join('\n');
+}
+
+function submitTemplate(e) {
+  e.preventDefault();
+  save(KEY_TEMPLATE, template);
+  const prompt = buildTemplatePrompt();
+  $('#tpl-dialog').close();
+  sendChat(prompt);
 }
 
 function autoResize() {
@@ -609,6 +723,12 @@ function init() {
   $('#item-form').addEventListener('submit', submitItem);
   $('#item-delete').addEventListener('click', deleteItem);
   $('#cook-form').addEventListener('submit', submitCook);
+  $('#tpl-form').addEventListener('submit', submitTemplate);
+  $('#tpl-reset').addEventListener('click', () => {
+    template = defaultTemplate();
+    renderTemplate();
+    $('#tpl-note').value = '';
+  });
   $('#cook-add-row').addEventListener('click', () => $('#cook-rows').append(makeCookRow('追加の食材', '', null, 0)));
   $('#stock-search').addEventListener('input', (e) => {
     state.search = e.target.value;
