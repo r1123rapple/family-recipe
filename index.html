@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>家族のレシピ</title>
+  <meta name="theme-color" content="#e8743b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="レシピ">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1 id="view-title">在庫</h1>
+    <button id="btn-refresh" class="icon-btn" aria-label="再読み込み" title="再読み込み">⟳</button>
+  </header>
+
+  <main>
+    <!-- 在庫 -->
+    <section id="view-stock" class="view">
+      <div class="toolbar">
+        <input id="stock-search" type="search" placeholder="食材を検索" autocomplete="off">
+        <button id="btn-add" class="btn primary">＋ 追加</button>
+      </div>
+      <div id="category-filter" class="chips scroll-x"></div>
+      <div id="stock-list"></div>
+    </section>
+
+    <!-- AIシェフ -->
+    <section id="view-chef" class="view" hidden>
+      <div id="chat-log" class="chat-log"></div>
+      <div class="chat-input-area">
+        <div id="quick-prompts" class="chips scroll-x"></div>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" rows="1" placeholder="例: 在庫でさっぱりした夕飯を考えて"></textarea>
+          <button class="btn primary" type="submit" id="chat-send">送信</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 履歴 -->
+    <section id="view-history" class="view" hidden>
+      <div id="history-list"></div>
+    </section>
+
+    <!-- 設定 -->
+    <section id="view-settings" class="view" hidden>
+      <div class="card">
+        <h2>接続設定</h2>
+        <label class="field">合言葉
+          <input id="set-passcode" type="password" autocomplete="current-password" placeholder="家族の合言葉">
+        </label>
+        <label class="field">何人分で考える？
+          <input id="set-servings" type="number" min="1" max="12" step="1">
+        </label>
+        <details>
+          <summary>上級者向け: サーバーURL</summary>
+          <label class="field">GAS ウェブアプリURL（空なら config.js の値を使用）
+            <input id="set-api" type="url" placeholder="https://script.google.com/macros/s/.../exec">
+          </label>
+        </details>
+        <div class="row-actions">
+          <button id="btn-save-settings" class="btn primary">保存して接続</button>
+        </div>
+        <p id="settings-status" class="muted"></p>
+      </div>
+      <div class="card">
+        <h2>ホーム画面に追加する方法</h2>
+        <p><b>iPhone / iPad</b>: Safari で開き、共有ボタン（□↑）→「ホーム画面に追加」</p>
+        <p><b>Android</b>: Chrome で開き、右上の︙ →「ホーム画面に追加」または「アプリをインストール」</p>
+        <p><b>PC</b>: Chrome / Edge のアドレスバー右端のインストールボタン</p>
+      </div>
+      <div class="card">
+        <h2>この端末のデータ</h2>
+        <p class="muted">AIとの会話はこの端末だけに保存されます。在庫と履歴は家族で共有されます。</p>
+        <button id="btn-clear-chat" class="btn">会話をすべて消す</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-view="stock" class="active"><span>🥕</span>在庫</button>
+    <button data-view="chef"><span>👩‍🍳</span>AIシェフ</button>
+    <button data-view="history"><span>📖</span>履歴</button>
+    <button data-view="settings"><span>⚙️</span>設定</button>
+  </nav>
+
+  <!-- 食材の追加・編集 -->
+  <dialog id="item-dialog">
+    <form id="item-form" method="dialog">
+      <h2 id="item-dialog-title">食材を追加</h2>
+      <label class="field">名前
+        <input id="item-name" required placeholder="例: じゃがいも" autocomplete="off">
+      </label>
+      <div class="field-row">
+        <label class="field">量
+          <input id="item-amount" type="number" inputmode="decimal" min="0" step="any" value="1">
+        </label>
+        <label class="field">単位
+          <input id="item-unit" placeholder="個" autocomplete="off">
+        </label>
+      </div>
+      <div id="unit-chips" class="chips wrap"></div>
+      <label class="field">カテゴリ
+        <select id="item-category"></select>
+      </label>
+      <label class="field">メモ（任意）
+        <input id="item-memo" placeholder="例: 賞味期限 10/30" autocomplete="off">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" id="item-delete" class="btn danger" hidden>削除</button>
+        <span class="spacer"></span>
+        <button type="button" value="cancel" class="btn" data-close>キャンセル</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 作る（消費量の確認） -->
+  <dialog id="cook-dialog">
+    <form id="cook-form" method="dialog">
+      <h2 id="cook-title">これを作る</h2>
+      <p class="muted">在庫から減らす量を確認してください。数字は自由に変えられます。</p>
+      <div id="cook-rows"></div>
+      <button type="button" id="cook-add-row" class="btn small">＋ 在庫の食材を追加</button>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn" data-close>キャンセル</button>
+        <button type="submit" class="btn primary">作った！在庫を減らす</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="loading" class="loading" hidden><div class="spinner"></div></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

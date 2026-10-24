@@ -1,0 +1,341 @@
+:root {
+  --bg: #fbf7f2;
+  --surface: #ffffff;
+  --surface-2: #f4ede4;
+  --text: #2b2420;
+  --muted: #8a7d72;
+  --border: #e6dcd0;
+  --accent: #e8743b;
+  --accent-text: #ffffff;
+  --accent-soft: #fde9dc;
+  --ok: #3f8f5a;
+  --warn: #c98a12;
+  --danger: #c84a3c;
+  --bubble-user: #e8743b;
+  --bubble-user-text: #ffffff;
+  --shadow: 0 1px 3px rgba(60, 40, 20, 0.08);
+  --tabbar-h: 64px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1916;
+    --surface: #26221e;
+    --surface-2: #312b26;
+    --text: #f1ebe4;
+    --muted: #a99c90;
+    --border: #3d3630;
+    --accent: #f08a54;
+    --accent-text: #1c1916;
+    --accent-soft: #4a3020;
+    --ok: #6cc08a;
+    --warn: #e6b04a;
+    --danger: #ef7a6c;
+    --bubble-user: #f08a54;
+    --bubble-user-text: #1c1916;
+    --shadow: none;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+[hidden] { display: none !important; }
+
+/* ---------- レイアウト ---------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 10px) 16px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.app-header h1 { font-size: 20px; margin: 0; }
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
+}
+
+.tabbar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 20;
+  display: flex;
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.tabbar button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tabbar button span { font-size: 22px; line-height: 1; filter: grayscale(0.6); opacity: 0.7; }
+.tabbar button.active { color: var(--accent); font-weight: 600; }
+.tabbar button.active span { filter: none; opacity: 1; }
+
+/* ---------- 共通パーツ ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.btn.danger { color: var(--danger); border-color: var(--danger); background: none; }
+.btn.small { min-height: 34px; padding: 0 12px; font-size: 14px; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.icon-btn {
+  width: 40px; height: 40px;
+  border: 0; border-radius: 50%;
+  background: none;
+  font-size: 22px;
+  cursor: pointer;
+}
+.icon-btn:active { background: var(--surface-2); }
+
+input, select, textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 16px; /* iOS のズーム防止 */
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.field { display: block; margin-bottom: 12px; font-size: 14px; color: var(--muted); }
+.field input, .field select { margin-top: 4px; color: var(--text); }
+.field-row { display: flex; gap: 12px; }
+.field-row .field { flex: 1; }
+
+.chips { display: flex; gap: 8px; padding: 4px 0 8px; }
+.chips.scroll-x { overflow-x: auto; scrollbar-width: none; }
+.chips.scroll-x::-webkit-scrollbar { display: none; }
+.chips.wrap { flex-wrap: wrap; margin: -6px 0 10px; }
+.chip {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.card h2 { font-size: 17px; margin: 0 0 12px; }
+.card p { margin: 6px 0; }
+
+.muted { color: var(--muted); font-size: 14px; }
+.row-actions { display: flex; gap: 8px; margin-top: 4px; }
+.spacer { flex: 1; }
+
+.empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+
+/* ---------- 在庫 ---------- */
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 4px; }
+
+.cat-heading { font-size: 14px; color: var(--muted); margin: 16px 4px 6px; font-weight: 600; }
+
+.stock-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+.stock-item.zero { opacity: 0.55; }
+.stock-main { flex: 1; min-width: 0; cursor: pointer; }
+.stock-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stock-memo { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stock-amount { min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.stock-amount small { font-weight: 400; color: var(--muted); margin-left: 2px; }
+.step-btn {
+  width: 40px; height: 40px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 20px;
+  cursor: pointer;
+}
+.step-btn:active { background: var(--accent-soft); }
+
+/* ---------- AIシェフ ---------- */
+
+#view-chef { display: flex; flex-direction: column; }
+.chat-log { flex: 1; padding-bottom: 150px; }
+
+.msg { display: flex; margin: 10px 0; }
+.msg.user { justify-content: flex-end; }
+.bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.user .bubble { background: var(--bubble-user); color: var(--bubble-user-text); border-bottom-right-radius: 4px; }
+.msg.model .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.msg.error .bubble { background: none; border: 1px dashed var(--danger); color: var(--danger); }
+
+.recipe {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 8px 0 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.recipe-head { padding: 14px 16px 6px; }
+.recipe-title { font-size: 18px; font-weight: 700; margin: 0; }
+.recipe-meta { font-size: 13px; color: var(--muted); }
+.recipe-desc { margin: 6px 0 0; font-size: 14px; }
+.recipe-body { padding: 0 16px 8px; }
+.recipe-body h4 { font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+.ing-list { list-style: none; margin: 0; padding: 0; }
+.ing-list li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px dotted var(--border); font-size: 15px; }
+.ing-list .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-left: 6px; vertical-align: 1px; }
+.tag.have { background: var(--accent-soft); color: var(--accent); }
+.tag.missing { border: 1px solid var(--warn); color: var(--warn); }
+.steps { margin: 0; padding-left: 22px; font-size: 15px; }
+.steps li { margin-bottom: 4px; }
+.recipe-foot { padding: 10px 16px 14px; display: flex; gap: 8px; }
+.recipe-foot .btn { flex: 1; }
+.recipe.collapsed .recipe-body { display: none; }
+
+.typing { display: inline-flex; gap: 4px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: 0.2s; }
+.typing i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+
+.chat-input-area {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  z-index: 15;
+  padding: 6px 16px 10px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.chat-input-area > * { max-width: 688px; margin-left: auto; margin-right: auto; }
+.chat-form { display: flex; gap: 8px; align-items: flex-end; }
+.chat-form textarea { resize: none; max-height: 120px; }
+
+/* ---------- 履歴 ---------- */
+
+.history-item { padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+.history-item .date { font-size: 12px; color: var(--muted); }
+.history-item .title { font-weight: 600; }
+.history-item .used { font-size: 14px; color: var(--muted); }
+
+/* ---------- ダイアログ ---------- */
+
+dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 20px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog h2 { margin: 0 0 12px; font-size: 19px; }
+.dialog-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+
+.cook-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cook-row input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+.cook-row .cook-label { font-weight: 600; }
+.cook-row .cook-label small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.cook-row .cook-controls { grid-column: 2; display: flex; gap: 8px; align-items: center; }
+.cook-row .cook-controls select { flex: 1.4; min-width: 0; }
+.cook-row .cook-controls input { flex: 1; min-width: 0; text-align: right; }
+.cook-row .cook-unit { min-width: 2.5em; color: var(--muted); font-size: 14px; }
+.cook-row .cook-stock { grid-column: 2; font-size: 12px; color: var(--muted); }
+.cook-row .cook-stock.short { color: var(--danger); }
+.cook-row.off .cook-controls, .cook-row.off .cook-stock { opacity: 0.4; }
+#cook-add-row { margin-top: 10px; }
+
+/* ---------- トースト・読み込み ---------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+.toast.error { background: var(--danger); color: #fff; }
+
+.loading { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, 0.12); }
+.spinner { width: 36px; height: 36px; border: 4px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
